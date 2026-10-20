@@ -1472,6 +1472,124 @@ test_metric_total 1
 	require.Empty(t, md.Unit)
 }
 
+func TestScrapeLoopMetricRelabelMetadata(t *testing.T) {
+	appTest := teststorage.NewAppendable()
+	target := NewTarget(
+		labels.FromStrings("instance", "localhost:9090", "job", "test"),
+		&config.ScrapeConfig{},
+		nil,
+		nil,
+	)
+	rc := []*relabel.Config{
+		// Drop dropped_metric_total completely; its metadata should not enter scrapeCache.
+		{
+			SourceLabels:         model.LabelNames{"__name__"},
+			Separator:            ";",
+			Regex:                relabel.MustNewRegexp("dropped_metric_total"),
+			Replacement:          "$1",
+			Action:               relabel.Drop,
+			NameValidationScheme: model.UTF8Validation,
+		},
+		// Rename old_http_requests_total -> http_requests_total.
+		{
+			SourceLabels:         model.LabelNames{"__name__"},
+			Separator:            ";",
+			Regex:                relabel.MustNewRegexp("old_(http_requests_total)"),
+			TargetLabel:          "__name__",
+			Replacement:          "$1",
+			Action:               relabel.Replace,
+			NameValidationScheme: model.UTF8Validation,
+		},
+		// Rename old_latency_* -> latency_* for histogram family.
+		{
+			SourceLabels:         model.LabelNames{"__name__"},
+			Separator:            ";",
+			Regex:                relabel.MustNewRegexp("old_(latency.*)"),
+			TargetLabel:          "__name__",
+			Replacement:          "$1",
+			Action:               relabel.Replace,
+			NameValidationScheme: model.UTF8Validation,
+		},
+	}
+
+	sl, _ := newTestScrapeLoop(t, withAppendable(appTest, true), func(sl *scrapeLoop) {
+		sl.mrc = rc
+		sl.sampleMutator = func(l labels.Labels) labels.Labels {
+			return mutateSampleLabels(l, target, false, rc)
+		}
+	})
+
+	now := time.Now()
+	scrapeText := []byte(`# TYPE dropped_metric counter
+# HELP dropped_metric should not be cached
+dropped_metric_total 10
+# TYPE old_http_requests counter
+# HELP old_http_requests Total HTTP requests
+# UNIT old_http_requests requests
+old_http_requests_total 42
+# TYPE old_latency histogram
+# HELP old_latency Request latency
+old_latency_bucket{le="+Inf"} 1
+old_latency_sum 0.5
+old_latency_count 1
+# EOF`)
+
+	app := sl.appender()
+	total, added, seriesAdded, err := app.append(scrapeText, "application/openmetrics-text", now)
+	require.NoError(t, err)
+	require.NoError(t, app.Commit())
+	require.Equal(t, 5, total)
+	require.Equal(t, 4, added)
+	require.Equal(t, 4, seriesAdded)
+
+	// Dropped metric metadata must not be stored in scrapeCache (#14013).
+	_, ok := sl.cache.GetMetadata("dropped_metric")
+	require.False(t, ok, "expected dropped metric metadata to be absent from scrapeCache")
+	_, ok = sl.cache.GetMetadata("dropped_metric_total")
+	require.False(t, ok, "expected dropped metric metadata to be absent from scrapeCache")
+
+	// Pre-rename metric families must not be stored under the old names.
+	_, ok = sl.cache.GetMetadata("old_http_requests")
+	require.False(t, ok, "expected pre-rename metric family to be absent from scrapeCache")
+	_, ok = sl.cache.GetMetadata("old_http_requests_total")
+	require.False(t, ok, "expected pre-rename metric family to be absent from scrapeCache")
+	_, ok = sl.cache.GetMetadata("old_latency")
+	require.False(t, ok, "expected pre-rename histogram family to be absent from scrapeCache")
+
+	// Renamed counter family must have its metadata stored under post-relabel family name.
+	md, ok := sl.cache.GetMetadata("http_requests")
+	require.True(t, ok)
+	require.Equal(t, model.MetricTypeCounter, md.Type)
+	require.Equal(t, "requests", md.Unit)
+	require.Equal(t, "Total HTTP requests", md.Help)
+
+	// Renamed histogram family must have its metadata stored under post-relabel family name ("latency").
+	md, ok = sl.cache.GetMetadata("latency")
+	require.True(t, ok)
+	require.Equal(t, model.MetricTypeHistogram, md.Type)
+	require.Equal(t, "Request latency", md.Help)
+
+	// Verify WAL / Appender metadata is attached to renamed series.
+	teststorage.RequireEqual(t, []sample{
+		{
+			L: labels.FromStrings("__name__", "http_requests_total", "instance", "localhost:9090", "job", "test"),
+			M: metadata.Metadata{Type: model.MetricTypeCounter, Unit: "requests", Help: "Total HTTP requests"},
+		},
+		{
+			L: labels.FromStrings("__name__", "latency_bucket", "instance", "localhost:9090", "job", "test", "le", "+Inf"),
+			M: metadata.Metadata{Type: model.MetricTypeHistogram, Help: "Request latency"},
+		},
+		{
+			L: labels.FromStrings("__name__", "latency_sum", "instance", "localhost:9090", "job", "test"),
+			M: metadata.Metadata{Type: model.MetricTypeHistogram, Help: "Request latency"},
+		},
+		{
+			L: labels.FromStrings("__name__", "latency_count", "instance", "localhost:9090", "job", "test"),
+			M: metadata.Metadata{Type: model.MetricTypeHistogram, Help: "Request latency"},
+		},
+	}, appTest.ResultMetadata())
+}
+
 func TestScrapeLoopSeriesAdded(t *testing.T) {
 	foreachAppendable(t, func(t *testing.T, appV2 bool) {
 		testScrapeLoopSeriesAdded(t, appV2)
