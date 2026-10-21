@@ -17,7 +17,7 @@
 - [FEATURE] PromQL: Use start timestamps to detect counter resets when float timeseries are queried using extended range selector modifiers (`anchored`, `smoothed`). This feature is hidden behind `use-start-timestamps` feature flag. (#18966, @vpranckaitis)
 - [FEATURE] Promtool: print test filename during promtool tests (#18271, @dnwe)
 - [ENHANCEMENT] Search API: Warn when participating remote-read storage does not support search.
-  [BUGFIX] Search API: Avoid panics when the requested time range has no participating storage. (#19992, @aknuds1)
+- [BUGFIX] Search API: Avoid panics when the requested time range has no participating storage. (#19992, @aknuds1)
 - [ENHANCEMENT] Remote Read: Add native histogram prometheus_remote_read_handler_gate_wait_duration_seconds to measure concurrency-gate wait duration, including requests canceled while waiting. (#18355, @ogulcanaydogan)
 - [ENHANCEMENT] Remote Write: Add experimental flag `convert_nhcb_to_classic` to convert NHCB to classic histograms for external systems that dont support NHCBs. (#17205, @Naman-B-Parlecha)
 - [ENHANCEMENT] promtool: Add `--allow-incompatible-block-duration` so users can specify any max-block-duration instead of being restricted to the default Prometheus block durations. (#19363, @sarthaksarthak9)
@@ -31,18 +31,15 @@
 - [PERF] TSDB: Reduce memory used writing and reading checkpoint metadata records. (#19712, @kgeckhart)
 - [PERF] textparse: Convert classic histograms to NHCB directly in the OpenMetrics 2.0 parser without wrapping in `NHCBParser`. (#19880, @bwplotka)
 - [PERF] textparse: Reduce OpenMetrics 2.0 parser allocations and CPU overhead by lazily constructing composite series and exemplar labels. (#19895, @bwplotka)
-- [BUGFIX] Agent: Avoid WAL corruption after a failed WAL write (#19700, @fancive)
 - [BUGFIX] Remote read: Abort failed streaming responses without writing duplicate headers or appending plain-text errors to the protobuf stream (#19749, @aknuds1)
 - [BUGFIX] TSDB: Fix loss of out-of-order samples when a WAL checkpoint drops a series record that the out-of-order write-behind log still needs (#19737, @replay)
 - [BUGFIX] TSDB: Fix queries that seek within a head chunk returning samples committed after the query started (#19854, @aknuds1)
 - [BUGFIX] TSDB: Preserve mapped chunks when WAL replay merges multiple references for the same series, preventing missing out-of-order samples and duplicate in-order chunks after restart (#19805, @dmatth1)
-- [BUGFIX] TSDB: Prevent query panics during series eviction after WAL replay (#19664, @aknuds1)
-- [BUGFIX]  Fix auto-reload logic to reload after reverting a failed configuration change (#19838, @eholzbach)
+- [BUGFIX] Fix auto-reload logic to reload after reverting a failed configuration change (#19838, @eholzbach)
 - [BUGFIX] API: Do not match metric family metadata for doubled _total and _info suffixes in experimental search API. (#19910, @tcp13equals2)
 - [BUGFIX] API: Reject `timeout` and `lookback_delta` values that overflow int64 instead of turning them into a negative duration (#19658, @youdie006)
 - [BUGFIX] API: Resolve metric family metadata for suffixed metric names in search results, in experimental search API. (#19824, @roidelapluie)
 - [BUGFIX] AWS SD: Describe each ElastiCache cluster once instead of twice for clusters that are not replication group members. (#19434, @ekalinin)
-- [BUGFIX] Agent: Ignore unknown WAL record types, to help users rolling back. (#19814, @roidelapluie)
 - [BUGFIX] Build: Allow installing promtool with version-suffixed go install commands (#19754, @aknuds1)
 - [BUGFIX] Discovery: Fix a panic in Azure service discovery when a VM tag has a null value. (#19755, @shoemoney)
 - [BUGFIX] Federation: fix corruption of float native histograms. (#19679, @MichaHoffmann)
@@ -50,7 +47,7 @@
 - [BUGFIX] Histograms: Fix ConvertNHCBToClassic inflating classic bucket counts for integer native histograms whose spans have gaps. (#19659, @youdie006)
 - [BUGFIX] Logging: Preserve rule and TSDB block values in JSON logs. (#19572, @shilohlee98)
 - [BUGFIX] OTLP receiver: Drop exemplars with timestamps more than 10 minutes in the future instead of storing them and blocking subsequent exemplars for that series.
-  [CHANGE] Remote write receiver: Count Remote Write 2.x samples and histograms ingested without metadata in `prometheus_api_remote_write_without_metadata_appended_samples_total` even when `metadata-wal-records` is disabled. (#19812, @bwplotka)
+- [CHANGE] Remote write receiver: Count Remote Write 2.x samples and histograms ingested without metadata in `prometheus_api_remote_write_without_metadata_appended_samples_total` even when `metadata-wal-records` is disabled. (#19812, @bwplotka)
 - [BUGFIX] OTLP: Count only out-of-order exemplars in `prometheus_api_otlp_out_of_order_exemplars_total`, not every rejected exemplar. (#20030, @aknuds1)
 - [BUGFIX] OTLP: Do not drop exemplars that have a `trace_id` or `span_id` filtered attribute in addition to a trace or span ID. The trace context now takes precedence over the colliding attribute, as required by the OpenTelemetry specification. (#20004, @krajorama)
 - [BUGFIX] OTLP: Do not emit `le="+Inf"` twice when a histogram's explicit bounds end at `+Inf`, and warn about the bound. (#19425, @serhiy-bzhezytskyy)
@@ -72,7 +69,7 @@
 - [BUGFIX] PromQL: Range vector functions no longer raise a spurious "vector cannot contain metrics with the same labelset" error when series have different metric names but the same remaining labels, as long as their timestamps do not overlap within the evaluated range window (#18631, @kasharkzy)
 - [BUGFIX] PromQL: do not count subquery materialized samples in total samples statistics (#19873, @roidelapluie)
 - [BUGFIX] Remote write: Prevent future-dated exemplars from scaling shards down to the minimum.
-  [BUGFIX] Agent: Prevent future sent timestamps from advancing WAL truncation beyond the minimum retention window. (#19866, @thampiotr)
+- [BUGFIX] Agent: Prevent future sent timestamps from advancing WAL truncation beyond the minimum retention window. (#19866, @thampiotr)
 - [BUGFIX] Rules: Restore firing alerts with for durations shorter than --rules.alert.for-grace-period after a restart. (#19882, @ajaykr0905)
 - [BUGFIX] Scrape: fix failing scrape when float histogram is emitted over protobuf with count, zero count and buckets all zero, for example a result of recording `rate(x[1m])` over constant histogram. (#19682, @MichaHoffmann)
 - [BUGFIX] Search API: Return the lexically smallest label values when `limit` is set on `/api/v1/search/label_values`, instead of an arbitrary subset (#19694, @tcp13equals2)
@@ -91,9 +88,6 @@
 - [BUGFIX] promtool: Honor `--enable-feature` when evaluating rules in `test rules`. (#20046, @dennisme)
 - [BUGFIX] textparse: Ensure UTF-8 works with the experimental OpenMetrics 2.0 (#19902, @bwplotka)
 - [BUGFIX] textparse: Reject sum-only classic histograms during NHCB conversion (#19315, @shubhgupta2104)
-- [BUGFIX] Web: Upgrade `exporter-toolkit` to v0.20.0, fixing HTTP/2 ALPN negotiation loss under Go 1.27+ when TLS is enabled with `http2: true`. The server no longer silently falls back to HTTP/1.1, preventing excess TCP connections under concurrent load. #19807
-- [ENHANCEMENT] promtool: Add `--allow-incompatible-block-duration` so users can specify any max-block-duration instead of being restricted to the default Prometheus block durations.
-- [ENHANCEMENT] Remote write / Alertmanager: Upgrade `github.com/prometheus/sigv4` to v0.5.0, adding `session_name` and `tags` fields to the `sigv4` configuration block for STS AssumeRole sessions. The existing but previously undocumented `service_name` field is also documented.
 
 ## 3.15.1 / 2026-10-21
 
