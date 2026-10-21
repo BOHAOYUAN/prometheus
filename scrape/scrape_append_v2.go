@@ -693,7 +693,11 @@ func (sl *scrapeLoop) mutateSample(lset labels.Labels, lastMFName []byte, lastMe
 		sampleMeta = metadata.Metadata{Type: model.MetricTypeUnknown}
 	}
 
-	lset = sl.sampleMutator(lset)
+	if sl.sampleMutatorWithMetadata != nil {
+		lset, sampleMeta = sl.sampleMutatorWithMetadata(lset, sampleMeta)
+	} else if sl.sampleMutator != nil {
+		lset = sl.sampleMutator(lset)
+	}
 	if lset.IsEmpty() {
 		return lset, metadata.Metadata{}, "", false
 	}
@@ -704,5 +708,5 @@ func (sl *scrapeLoop) mutateSample(lset labels.Labels, lastMFName []byte, lastMe
 		preMF = lastMFName
 	}
 	postMFName := metricFamilyName(preName, preMF, postName, sampleMeta.Type)
-	return lset, sampleMeta, postMFName, hasFamilyMeta
+	return lset, sampleMeta, postMFName, hasFamilyMeta || !sampleMeta.IsEmpty()
 }
